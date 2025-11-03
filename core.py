@@ -8,6 +8,9 @@ def randf(minimum : float, maximum : float):
 def lerp(a, b, t : float):
     return a + (b - a) * t
 
+def aspect_ratio(fenetre : pg.Surface):
+    return fenetre.get_width() / fenetre.get_height()
+
 # Vecteur en trois dimensions (3 composantes, soit x, y, z)
 class Vecteur3:
     def __init__(self,x=0,y=0,z=0):
@@ -50,7 +53,7 @@ class Vecteur3:
 
     def projection(self, fenetre : pg.Surface):
         if self.z > 0:
-            return ((self.x / self.z + 1) * 0.5 * fenetre.get_width(), (-self.y / self.z + 1) * 0.5 * fenetre.get_height())
+            return ((self.x / (self.z * 0.5) + 1) * 0.5 * fenetre.get_width() / aspect_ratio(fenetre), (-self.y / (self.z * 0.5) + 1) * 0.5 * fenetre.get_height())
         else:
             return (0,0)
     
@@ -150,14 +153,24 @@ def afficher_ligne(a : Vecteur3, b : Vecteur3, fenetre : pg.Surface, camera_rota
             point_a = point_a.zclip(point_b)
         elif point_b.z <= 0:
             point_b = point_b.zclip(point_a)
-        pg.draw.line(fenetre,couleur,point_a.projection(fenetre),point_b.projection(fenetre),max(math.ceil(epaisseur/max(point_a.z,point_b.z)),0))
+        pg.draw.line(fenetre,couleur,point_a.projection(fenetre),point_b.projection(fenetre),max(math.ceil(epaisseur/max(point_a.z,point_b.z,1)),0))
+
+def afficher_sphere(position : Vecteur3, rayon : float, couleur : tuple, fenetre : pg.Surface, camera_rotation : Matrice3x3, camera_translation : Vecteur3, outline = True):
+        new_pos = appliquer_transformation(position, camera_rotation, camera_translation)
+        if new_pos.z > 0:
+            pos = new_pos.projection(fenetre)
+            ar = aspect_ratio(fenetre)
+            pg.draw.circle(fenetre, couleur, pos, fenetre.get_width()*rayon/ar/new_pos.z)
+            if outline:
+                pg.draw.circle(fenetre, (0,0,0), pos, fenetre.get_width()*rayon/ar/new_pos.z, 2)
 
 class Particule:
-    def __init__(self, masse : float, position : Vecteur3, velocite = Vecteur3(), acceleration = Vecteur3(), damping = 0.85):
+    def __init__(self, masse : float, position : Vecteur3, velocite = Vecteur3(), acceleration = Vecteur3(), rayon = 0.25, damping = 0.85):
         self.position = position
         self.velocite = velocite
         self.acceleration = acceleration
         self.damping = damping
+        self.rayon = rayon
         if masse != 0:
             self.__masse_inverse = 1 / masse
         else:
@@ -199,8 +212,4 @@ class Particule:
             self.__masse_inverse = 0
     
     def afficher_point(self, couleur : tuple, fenetre : pg.Surface, camera_rotation : Matrice3x3, camera_translation : Vecteur3):
-        new_pos = appliquer_transformation(self.position, camera_rotation, camera_translation)
-        if new_pos.z > 0:
-            pos = new_pos.projection(fenetre)
-            pg.draw.circle(fenetre, couleur, pos, 64/new_pos.z)
-            pg.draw.circle(fenetre, (0,0,0), pos, 64/new_pos.z, 2)
+        afficher_sphere(self.position, self.rayon, couleur, fenetre, camera_rotation, camera_translation)

@@ -6,7 +6,7 @@ import utilitees as utils
 FPS = 60
 
 pg.init()
-fenetre = pg.display.set_mode((500, 500), pg.RESIZABLE)
+fenetre = pg.display.set_mode((700, 700))
 clock = pg.time.Clock()
 
 cameraman = utils.Cameraman()
@@ -16,11 +16,11 @@ if __name__ == "__main__":
     forces_generales.append(ForceGravite())
 
     # Trainee aerienne (friction de l'air)
-    #forces_generales.append(ForceTrainee(0.05, 0.001))
+    #forces_generales.append(ForceTrainee(0.005, 0.0001))
 
     # Une simulation d'un liquide qui applique un poussee
     # d'archimède lorsque les particules sont sous une certaine hauteur
-    #forces_generales.append(ForcePousseeArchimede(5,0.25**2,-10))
+    #forces_generales.append(ForcePousseeArchimede(5,-10))
 
     particules : list[Particule] = []
 
@@ -30,41 +30,23 @@ if __name__ == "__main__":
 
     generateurs_de_collisions : list[GenerateurDeCollisions] = []
     generateurs_de_collisions.append(Sol(particules, -15))
-    generateurs_de_collisions.append(DetecteurDeCollisions(particules))
+    generateurs_de_collisions.append(DetecteurDeCollisions(particules,0))
 
     contacts : list[Contact] = []
     resolveur = ResolveurDeContacts()
     
-    # Construire un echafaudage
-    # STEPS = Le nombre de cotés de l'echafaudage
-    # SUBSTEPS = La densite de l'echafaudage verticalement (une hauteur de 10 totale)
+    utils.construire_echafaudage(3, 2, 3, particules, liens, forces, Barre, Vecteur3(10,0,0), masse=0.5)
+
     STEPS = 4
     SUBSTEPS = 4
-    angle_step = math.pi / STEPS * 2
+    utils.construire_echafaudage(STEPS, SUBSTEPS, 10, particules, liens, forces, Barre)
+
+    particules.append(Particule(0,Vecteur3(0,10,0),rayon=1))
     for i in range(STEPS):
-        angle = i * angle_step
-        pos = Matrice3x3.rotation_Y(angle) * Vecteur3(0,0,-2)
-        for j in range(SUBSTEPS):
-            particules.append(Particule(1, pos + Vecteur3(0,10/(SUBSTEPS-1),0) * j))
-    for i in range(STEPS):
-        # Liens solides (Barres)
-        for j in range(SUBSTEPS):
-            if j < SUBSTEPS-1:
-                # Liens verticaux
-                liens.append(Barre(particules[i*SUBSTEPS+j],particules[i*SUBSTEPS+j+1]))
-                # Liens diagonaux
-                liens.append(Barre(particules[(i-1)*SUBSTEPS+j+1],particules[i*SUBSTEPS+j]))
-                liens.append(Barre(particules[(i-1)*SUBSTEPS+j],particules[i*SUBSTEPS+j+1]))
-            # Liens horizontaux
-            liens.append(Barre(particules[(i-1)*SUBSTEPS+j],particules[i*SUBSTEPS+j]))
-            # Liens diagonaux entres les "bases" de chaque hauteur
-            liens.append(Barre(particules[(i-STEPS//2)*SUBSTEPS+j],particules[i*SUBSTEPS+j]))
-        # Ajouter un propulseur sur chaque element de la base de la forme
-        forces.append(ForcePropulseur(particules[i*SUBSTEPS],Vecteur3(0,50*SUBSTEPS,0)))
+        liens.append(Cable(particules[-1],particules[-(i*SUBSTEPS)-2],10,1))
     
-    # Particules lourdes pour tester les collisions
-    particules.append(Particule(10, Vecteur3(10,-5,0)))
-    particules.append(Particule(20, Vecteur3(10.1,10,0)))
+    particules.append(Particule(0,Vecteur3(10,5,0),rayon=0.5))
+    forces.append(ForceBungee(particules[0],particules[-1],20))
 
     running = True
     paused = True
@@ -72,7 +54,7 @@ if __name__ == "__main__":
     deltaTime = 0
 
     # Load le font Consolas
-    consolas = pg.font.SysFont("Consolas",16)
+    consolas = pg.font.SysFont("Consolas",12)
 
     while running:
         for e in pg.event.get():
@@ -88,7 +70,15 @@ if __name__ == "__main__":
         
         matrice_camera, camera_position = cameraman.freecam(deltaTime)
 
+        if deltaTime >= 1/10:
+            deltaTime *= 0.25
+
         fenetre.fill((0,64,175))
+
+        for generateur in generateurs_de_collisions:
+            if not paused:
+                generateur.generer_contacts(contacts)
+            generateur.afficher(fenetre,matrice_camera,-camera_position)
 
         for force in forces:
             if not paused:
@@ -99,11 +89,6 @@ if __name__ == "__main__":
             if not paused:
                 lien.generer_contacts(contacts)
             lien.afficher(fenetre,matrice_camera, -camera_position)
-        
-        for generateur in generateurs_de_collisions:
-            if not paused:
-                generateur.generer_contacts(contacts)
-            generateur.afficher(fenetre,matrice_camera,camera_position)
 
         if not paused:
             resolveur.resoudre_contacts(contacts,deltaTime)
@@ -126,8 +111,10 @@ if __name__ == "__main__":
         
         # Écrire les details de la simulation dans les coins de l'écran
         fps = clock.get_fps()
-        fenetre.blit(consolas.render(f"FPS: {fps:2g}",False,(64,255,64)),(0,0))
-        fenetre.blit(consolas.render(f"Contacts: {len(contacts):3d}",False,(64,255,64)),(fenetre.get_width()-120,0))
+        fenetre.blit(consolas.render(f"FPS: {fps:2g}",True,(64,255,64)),(0,0))
+        fenetre.blit(consolas.render(f"Contacts: {len(contacts):3d}",True,(64,255,64)),(fenetre.get_width()-100,0))
+        fenetre.blit(consolas.render("WASD -> bouger, E ou Q -> monter/descendre, ESC -> capturer/libérer",True,(64,255,64)),(2,fenetre.get_height()-32))
+        fenetre.blit(consolas.render("SPACE -> pause/resume, 1234 -> activer propulseurs",True,(64,255,64)),(2,fenetre.get_height()-16))
 
         contacts.clear()
         

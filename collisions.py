@@ -6,18 +6,17 @@ class GenerateurDeCollisions:
         self.particules = particules
     def generer_contacts(self, contacts : list[Contact]):
         pass
-    def afficher(self, fenetre : pg.Surface, camera_rotation : Matrice3x3, camera_position : Vecteur3):
+    def afficher(self, fenetre : pg.Surface, camera_rotation : Matrice3x3, camera_translation : Vecteur3):
         pass
 
 class DetecteurDeCollisions(GenerateurDeCollisions):
-    def __init__(self, particules : list[Particule], rayon_particule = 0.25, restitution = 0.25):
+    def __init__(self, particules : list[Particule], restitution = 0.25):
         super().__init__(particules)
-        self.rayon_particule = rayon_particule
         self.restitution = restitution
     def collision_sphere_vs_sphere(self, a : Particule, b : Particule):
         normal = a.position - b.position
         dist = normal.norme()
-        radii = 2 * self.rayon_particule
+        radii = a.rayon + b.rayon
         if dist < radii:
             penetration = radii - dist
             return Contact(a,b,normal.normaliser(),penetration,self.restitution)
@@ -43,5 +42,10 @@ class Sol(GenerateurDeCollisions):
         self.restitution = restitution
     def generer_contacts(self, contacts : list[Contact]):
         for a in self.particules:
-            if a.position.y <= self.hauteur:
+            if a.position.y <= self.hauteur + a.rayon:
                 contacts.append(Contact(a,None,Vecteur3(0,1,0),self.hauteur - a.position.y,self.restitution))
+    def afficher(self, fenetre : pg.Surface, camera_rotation : Matrice3x3, camera_translation : Vecteur3):
+        for p in self.particules:
+            surface = p.position.copier()
+            surface.y = self.hauteur
+            afficher_sphere(surface, p.rayon, (75,75,75), fenetre, camera_rotation, camera_translation, False)

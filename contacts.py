@@ -63,10 +63,10 @@ class Contact:
 
         mouvements = [mouvement_masse_inverse * self.a.avoir_masse_inverse(), 0]
 
-        self.a.velocite += mouvements[0]
+        self.a.ajouter_impulsion(mouvements[0])
         if self.b != None:
             mouvements[1] = mouvement_masse_inverse * -self.b.avoir_masse_inverse()
-            self.b.velocite += mouvements[1]
+            self.b.ajouter_impulsion(mouvements[1])
         return mouvements
 
 class ResolveurDeContacts:
@@ -137,10 +137,9 @@ class Barre(Lien):
         if longeur > self.longeur:
             contacts.append(Contact(self.a,self.b,normal,abs(self.longeur-longeur)*1,0))
         else:
-            contacts.append(Contact(self.a,self.b,-normal,abs(longeur-self.longeur)*1,0))
+            contacts.append(Contact(self.a,self.b,-normal,abs(longeur-self.longeur),0))
     def afficher(self, fenetre : pg.Surface, camera_rotation : Matrice3x3, camera_translation : Vecteur3):
-        coeff = min(1 - abs(self.longeur - self.calculer_longeur()) / (self.longeur * 5), 1)
-        super().afficher(fenetre,camera_rotation,camera_translation,(145 * coeff, 145 * coeff, 145 * coeff))
+        super().afficher(fenetre,camera_rotation,camera_translation,(145, 145, 145))
 
 class BarreMalleable(Lien):
     def __init__(self, a : Particule, b : Particule, longeur : float = 0):
@@ -155,5 +154,18 @@ class BarreMalleable(Lien):
             contacts.append(Contact(self.a,self.b,normal,-1,0))
         else:
             contacts.append(Contact(self.a,self.b,-normal,-1,0))
-    def afficher(self, fenetre : pg.Surface, camera_rotation : Matrice3x3, camera_translation : Vecteur3):
-        super().afficher(fenetre,camera_rotation,camera_translation,(145,145,145))
+
+# Un lien qui ne permet pas un objet de bouger relativement à sa base
+class Soudure(Lien):
+    def __init__(self, a : Particule, b : Particule, decalage : Vecteur3 | None = None):
+        super().__init__(a,b)
+        if decalage == None:
+            self.decalage = b.position - a.position
+        else:
+            self.decalage = decalage
+    def generer_contacts(self, contacts : list[Contact]):
+        normal = self.decalage - (self.b.position - self.a.position)
+        penetration = normal.norme()
+        if penetration <= 0.00001:
+            return
+        contacts.append(Contact(self.b,self.a,normal.normaliser(),penetration * 10,0))
